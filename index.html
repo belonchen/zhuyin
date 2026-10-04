@@ -142,7 +142,7 @@ button:focus-visible{outline:4px solid var(--f);outline-offset:3px}
       <button class="mode f" data-go="listen"><span class="g">👂</span><b>聽音找注音</b><small>聽到什麼，就點哪一個</small></button>
       <button class="mode k" data-go="picture"><span class="g">🖼️</span><b>看圖找注音</b><small>圖裡藏著哪個注音？</small></button>
     </div>
-    <p class="tip">聽不到聲音嗎？請把音量調大，並關掉 iPad 的靜音模式。</p>
+    <p class="tip">聽不到聲音嗎？請把音量調大，並關掉 iPad 的靜音模式。<br><span id="voiceInfo"></span></p>
     <p class="credit">注音發音：2017 © 教育部，國語注音符號手冊-開放部件，依 <a href="https://creativecommons.org/licenses/by/4.0/deed.zh_TW" target="_blank" rel="noopener">CC BY 4.0</a> 使用（已轉為較小的音檔格式）。例詞由 iPad 語音朗讀。</p>
   </section>
 
@@ -221,13 +221,21 @@ $('starN').textContent=stars;
 
 // voice
 let voice=null;
-function pickVoice(){const vs=speechSynthesis.getVoices();voice=vs.find(v=>/zh[-_]TW/i.test(v.lang))||vs.find(v=>/zh[-_](HK|Hant)/i.test(v.lang))||vs.find(v=>/^zh/i.test(v.lang))||null}
+// 只用國語：台灣 → 普通話 → 其他中文，排除廣東話（zh-HK / yue）
+function pickVoice(){
+  const vs=speechSynthesis.getVoices(),cant=v=>/HK|yue|Cantonese|粵|廣東/i.test(v.lang+v.name);
+  voice=vs.find(v=>/zh[-_]TW/i.test(v.lang))||vs.find(v=>/Mei-?Jia|美佳/i.test(v.name))
+    ||vs.find(v=>/zh[-_]CN/i.test(v.lang)&&!cant(v))||vs.find(v=>/^(zh|cmn)/i.test(v.lang)&&!cant(v))||null;
+  const el=document.getElementById('voiceInfo');
+  if(el)el.textContent=voice?`例詞語音：${voice.name}（${voice.lang}）`
+    :'找不到國語語音：請到「設定 → 輔助使用 → 朗讀內容 → 聲音 → 中文」下載台灣的「美佳」。';
+}
 if('speechSynthesis' in window){pickVoice();speechSynthesis.onvoiceschanged=pickVoice}
 function say(text){
   if(!('speechSynthesis' in window))return;
   speechSynthesis.cancel();
   const u=new SpeechSynthesisUtterance(text);
-  u.lang='zh-TW';if(voice)u.voice=voice;u.rate=.75;u.pitch=1.1;
+  if(!voice)return;u.voice=voice;u.lang=voice.lang;u.rate=.75;u.pitch=1.1;
   speechSynthesis.speak(u);
 }
 
