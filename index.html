@@ -151,10 +151,12 @@ button:focus-visible{outline:4px solid var(--f);outline-offset:3px}
 .pbtn.danger{border-color:var(--s);color:var(--s-dk)}
 
 /* rest reminder */
-#rest{position:fixed;inset:0;background:rgba(34,49,74,.45);display:grid;place-items:center;padding:16px;z-index:6}
-#rest>div{background:var(--panel);border-radius:32px;padding:28px 40px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:8px}
+#rest,#gate{position:fixed;inset:0;background:rgba(34,49,74,.45);display:grid;place-items:center;padding:16px;z-index:6}
+#rest>div,#gate>div{background:var(--panel);border-radius:32px;padding:28px 40px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:8px}
 #rest .big{font-size:5rem;line-height:1.1}
-#rest b{font-size:2rem}
+#rest b,#gate b{font-size:2rem}
+#gate .q{margin:0;font-size:1.2rem;color:var(--ink-soft)}
+.home-parent{align-self:center}
 #rest p{margin:0 0 8px;font-size:1.3rem;color:var(--ink-soft)}
 
 /* cheer + fx */
@@ -187,7 +189,8 @@ button:focus-visible{outline:4px solid var(--f);outline-offset:3px}
       <button class="mode k" data-go="picture"><span class="g">🖼️</span><b>看圖找注音</b><small>圖裡藏著哪個注音？</small></button>
       <button class="mode m" data-go="initial"><span class="g">🔍</span><b>開頭音</b><small>哪一個是這個音開頭？</small></button>
     </div>
-    <p class="tip">聽不到聲音嗎？請把 iPad 的音量調大。<br>家長：長按右上角的星星 2 秒，可以看學習進度和設定提醒時間。</p>
+    <p class="tip">聽不到聲音嗎？請把 iPad 的音量調大。</p>
+    <button class="pbtn home-parent" id="parentBtn">家長專區：學習進度・休息提醒</button>
     <p class="credit">注音發音與筆順：2017 © 教育部，國語注音符號手冊-開放部件，依 <a href="https://creativecommons.org/licenses/by/4.0/deed.zh_TW" target="_blank" rel="noopener">CC BY 4.0</a> 使用（已統一音量並轉檔）。例詞與鼓勵語由 Apple「美佳」語音預錄。</p>
   </section>
 
@@ -215,6 +218,7 @@ button:focus-visible{outline:4px solid var(--f);outline-offset:3px}
       <h2>休息提醒</h2>
       <div class="prow" id="pLimit"></div>
       <p class="pnote">時間到會跳出提醒，小孩可以自己關掉。之後每再玩同樣的時間會再提醒一次。</p>
+      <div class="prow"><button class="pbtn" id="pPreview">預覽提醒</button></div>
     </div>
     <div class="psec">
       <h2>紀錄</h2>
@@ -252,6 +256,7 @@ button:focus-visible{outline:4px solid var(--f);outline-offset:3px}
   </div>
 </div>
 
+<div id="gate" hidden><div><b>家長確認</b><p class="q" id="gateQ"></p><div class="prow" id="gateA"></div><button class="pbtn" id="gateNo">取消</button></div></div>
 <div id="rest" hidden><div><span class="big">👀</span><b id="restT"></b><p>讓眼睛休息一下吧！</p><button class="pill k" id="restOk">好</button></div></div>
 <div id="cheer" hidden><div><span class="big">🏆</span><b id="cheerT">好棒！</b></div></div>
 <canvas id="fx"></canvas>
@@ -542,10 +547,17 @@ function cheer(){
   setTimeout(()=>{$('cheer').hidden=true},2600);
 }
 
-// 家長進度頁：長按星星 2 秒打開
-let lpTimer=0;
-$('stars').addEventListener('pointerdown',()=>{clearTimeout(lpTimer);lpTimer=setTimeout(()=>{tone([440,660]);show('parent')},2000)});
-['pointerup','pointerleave','pointercancel'].forEach(t=>$('stars').addEventListener(t,()=>clearTimeout(lpTimer)));
+// 家長專區：先答一題加法（擋住小孩）
+let gateAns=0;
+$('parentBtn').onclick=()=>{
+  const a=6+(Math.random()*4|0),b=6+(Math.random()*4|0);gateAns=a+b;
+  const ch=shuffle([gateAns,gateAns+1+(Math.random()*3|0),gateAns-1-(Math.random()*3|0)]);
+  $('gateQ').textContent=`請選出 ${a} + ${b} 的答案`;
+  $('gateA').innerHTML=ch.map(n=>`<button class="pbtn" data-g="${n}">${n}</button>`).join('');
+  $('gate').hidden=false;
+};
+$('gateA').addEventListener('click',e=>{const b=e.target.closest('[data-g]');if(!b)return;$('gate').hidden=true;if(+b.dataset.g===gateAns)show('parent')});
+$('gateNo').onclick=()=>{$('gate').hidden=true};
 const LIMITS=[[10,'10 分鐘'],[15,'15 分鐘'],[20,'20 分鐘'],[0,'關閉']];
 function renderParent(){
   const days=[...Array(7)].map((_,i)=>{const d=new Date();d.setDate(d.getDate()-i);return dayKey(d)});
@@ -581,10 +593,15 @@ setInterval(()=>{
   const n=reminded[k]||0;
   if(limit&&playLog[k]>=limit*60*(n+1)){
     reminded={[k]:n+1};save('zy-reminded',reminded);
-    $('restT').textContent=`今天玩了 ${Math.round(playLog[k]/60)} 分鐘囉！`;$('rest').hidden=false;seq('rest');
+    showRest();
   }
 },5000);
+function showRest(preview){
+  $('restT').textContent=preview===true?'（預覽）時間到會這樣提醒':`今天玩了 ${Math.round((playLog[dayKey(new Date())]||0)/60)} 分鐘囉！`;
+  $('rest').hidden=false;seq('rest');
+}
 $('restOk').onclick=()=>{$('rest').hidden=true};
+$('pPreview').onclick=()=>showRest(true);
 
 // confetti
 const fx=$('fx'),cx=fx.getContext('2d');let parts=[],raf=0;
